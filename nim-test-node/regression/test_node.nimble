@@ -10,7 +10,7 @@ license       = "MIT"
 skipDirs      = @[]
 
 requires "nim >= 2.2.0",
-          "https://github.com/vacp2p/nim-libp2p#7edd055a6d10f5e839342f00af091a7665cd22c3", # release/v2.4 head (v2.4.0 draft release target), stock, no patches
+          "https://github.com/iftech/nim-libp2p#b2c2473a0974506ddd2c50d20995fc4284f39900", # release/v2.4 head with kad bucket rotation (#3180)
           # Open ranges upstream; held so a new tag cannot swap the stack under a campaign.
           "lsquic >= 0.9.0 & < 0.9.1",
           "chronos >= 4.2.4 & < 4.3.0"
