@@ -79,3 +79,15 @@ diff -ruN orig/lsquic/context/server.nim patched/lsquic/context/server.nim
  
    ctx.stream_if = struct_lsquic_stream_if(
      on_new_conn: onNewConn,
+diff -ruN orig/lsquic/context/io.nim patched/lsquic/context/io.nim
+--- orig/lsquic/context/io.nim	2026-09-16 11:11:51
++++ patched/lsquic/context/io.nim	2026-09-16 11:11:51
+@@ -137,7 +137,7 @@
+ 
+   let specsArr = cast[ptr UncheckedArray[struct_lsquic_out_spec]](specs)
+ 
+-  when defined(linux):
++  when defined(linux) and not defined(lsquic_no_sendmmsg):
+     var
+       destStorages {.noinit.}: array[SendmmsgBatchSize, Sockaddr_storage]
+       msgs {.noinit.}: array[SendmmsgBatchSize, MMsgHdr]

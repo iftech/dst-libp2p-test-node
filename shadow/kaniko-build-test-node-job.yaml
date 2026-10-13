@@ -7,7 +7,8 @@
 #   kubectl -n zerotesting-shadow wait --for=condition=Complete \
 #     --for=condition=Failed --timeout=900s job/test-node-shadow-build
 #
-# Builds the regression test-node (nim-test-node/regression) straight from master.
+# Builds the regression test-node (nim-test-node/regression) straight from master. For the
+# bootstrap, set NODE_BINARY=bootstrap and push to radiken/dst-test-node-shadow-bootstrap.
 # Prereq: dockerhub-creds secret in this namespace (see shadow/kaniko-build-job.yaml).
 apiVersion: batch/v1
 kind: Job
@@ -36,9 +37,10 @@ spec:
         - name: kaniko
           image: gcr.io/kaniko-project/executor:v1.23.2
           args:
-            - "--context=git://github.com/vacp2p/dst-libp2p-test-node.git#refs/heads/master"
+            - "--context=git://github.com/iftech/dst-libp2p-test-node.git#refs/heads/master"
             - "--context-sub-path=nim-test-node/regression"
-            - "--dockerfile=Dockerfile_amd64_shadow"
+            - "--dockerfile=Dockerfile_shadow"
+            - "--build-arg=NODE_BINARY=node"
             - "--destination=radiken/dst-test-node-shadow:latest"
             - "--cache=true"
             - "--cache-repo=radiken/dst-test-node-shadow-cache"

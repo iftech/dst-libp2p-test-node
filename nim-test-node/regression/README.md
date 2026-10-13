@@ -38,7 +38,8 @@ message delay and expose metrics on port `8008`.
 - `Dockerfile`: simple normal Docker build for the current Docker target
   platform.
 - `Dockerfile_shadow`: Shadow-specific Docker build. It creates a dynamically
-  linked amd64 binary and applies the lsquic tick-floor patch.
+  linked amd64 binary, applies the lsquic tick-floor patch and builds without
+  `sendmmsg`, which Shadow does not implement.
 
 ## Building the normal Docker images
 
@@ -106,7 +107,9 @@ exposing both upstream in nim-lsquic.
 
 ## Maintaining the patch
 
-It targets lsquic 0.5.4's layout, pinned in `test_node.nimble`. `nimble c`
+It targets lsquic 0.8.1's layout, pinned in `nimble.lock`. It also guards
+lsquic's `sendmmsg` path behind `-d:lsquic_no_sendmmsg`, which only
+`Dockerfile_shadow` sets. `nimble c`
 re-resolves deps before compiling, so the Dockerfile patches the package cache
 (`~/.nimble/pkgcache`, what nimble copies from) rather than the installed copy.
 The build asserts it patched something and greps the binary for
