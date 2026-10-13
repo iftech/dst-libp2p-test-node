@@ -1,7 +1,7 @@
 import strutils, os, osproc
 from std/net import getPrimaryIPAddr, IpAddress, `$`
 import chronos, metrics/chronos_httpserver, chronicles
-from nativesockets import getHostname
+from nativesockets import getHostname, getHostByName
 
 logScope:
   topics = "dst"
@@ -27,6 +27,14 @@ let
 
 proc listenHost*(): string =
   ## The interface the pod routes out of; 0.0.0.0 would announce loopback too.
+  if inShadow:
+    # Shadow has no default route to probe; the host's own name resolves to its IP.
+    try:
+      for ip in getHostByName(getHostname()).addrList:
+        if not ip.startsWith("127.") and ip != "0.0.0.0":
+          return ip
+    except CatchableError as e:
+      warn "Could not resolve own hostname in Shadow", error = e.msg
   try:
     $getPrimaryIPAddr()
   except CatchableError:
