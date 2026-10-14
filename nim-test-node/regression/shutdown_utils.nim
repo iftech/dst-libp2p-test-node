@@ -1,6 +1,11 @@
 import chronos
+import ./env
 
 proc waitShutdownSignal*() {.async.} =
+  if inShadow:
+    # Shadow cannot register signal handlers; it stops the process at sim end.
+    await newFuture[void]("waitShutdownSignal.shadow")
+    return
   let
     sigIntFut = waitSignal(SIGINT)
     sigTermFut = waitSignal(SIGTERM)

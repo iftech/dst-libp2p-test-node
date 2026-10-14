@@ -1,62 +1,55 @@
 # Dynamic-linked nim test-node, for the Shadow simulator.
 #
-# Mirrors Dockerfile but DROPS the static linker flags (`--passL:"-static
-# -mmusl"` and `--passL:"-static-libgcc -static-libstdc++"`).
+# Mirrors Dockerfile (same base, nimble and lockfile, amd64 only), plus the lsquic patch
+# and -d:lsquic_no_sendmmsg. Shadow's syscall interposer only hooks dynamically linked
+# ELFs, and it does not implement sendmmsg.
 #
-# Why: Shadow's syscall interposer is LD_PRELOAD-based and only hooks
-# dynamically linked ELFs. A statically linked nim binary fails at startup with
-# "Failed to verify plugin path '...': not a dynamically linked ELF".
-#
-# Build via kaniko on a lab worker (see shadow/kaniko-build-test-node-job.yaml).
-# Pushes to radiken/dst-test-node-shadow:latest.
+# Build via kaniko on a lab worker (see shadow/kaniko-build-test-node-job.yaml), once per
+# NODE_BINARY.
 
-FROM debian:bookworm-slim AS builder
-
-ARG NODE_BINARY=node
-ARG NIM_VERSION=2.2.6
+FROM nimlang/nim:2.2.10 AS builder
 
 WORKDIR /node
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl git build-essential ca-certificates \
-    libssl3 iproute2 procps xz-utils \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
+    git \
+    build-essential \
+    ca-certificates \
+    curl \
+    libssl3 \
+    iproute2 \
+    procps \
+    && rm -rf /var/lib/apt/lists/*
 
-RUN git config --global http.sslVerify false
+RUN git config --global http.version HTTP/1.1
 
-RUN curl -fsSL "https://nim-lang.org/download/nim-${NIM_VERSION}-linux_x64.tar.xz" -o /tmp/nim.tar.xz \
-    && tar -xf /tmp/nim.tar.xz -C /tmp \
-    && cp -r "/tmp/nim-${NIM_VERSION}/"* /usr/local \
-    && rm -rf /usr/local/nim* \
-    && mv "/tmp/nim-${NIM_VERSION}" "/usr/local/nim-${NIM_VERSION}" \
-    && ln -sf "/usr/local/nim-${NIM_VERSION}/bin/nim" /usr/local/bin/nim \
-    && ln -sf "/usr/local/nim-${NIM_VERSION}/bin/nimble" /usr/local/bin/nimble
+# fix #1837: honor locked package URLs during installation (#1838)
+RUN nimble install -y 'nimble@#07caee397d628c9e93d81048268365c4c2414a80'
+ENV PATH="/root/.nimble/bin:${PATH}"
+
+COPY test_node.nimble nimble.lock config.nims ./
+RUN nimble refresh && nimble setup
 
 COPY . .
 
-RUN nimble refresh
-RUN nimble install -dy --verbose
-
-# Floor lsquic's engine tick re-arms so Shadow can advance simulated time.
-# Gated by LSQUIC_TICK_FLOOR_US (unset/0 = stock). See README.md.
-COPY lsquic-tick-floor.patch /tmp/lsquic-tick-floor.patch
+# Floor lsquic's engine tick re-arms so Shadow can advance simulated time, and let the
+# build opt out of sendmmsg. Gated by LSQUIC_TICK_FLOOR_US (unset/0 = stock). See README.md.
 RUN set -eu; \
     patched=0; \
     for d in /root/.nimble/pkgcache/*lsquic*/ /root/.nimble/pkgs2/lsquic-*/; do \
       [ -f "${d}lsquic/context/context.nim" ] || continue; \
       if grep -q tickFloorUs "${d}lsquic/context/context.nim"; then echo "already patched $d"; continue; fi; \
-      ( cd "$d" && git apply -p1 /tmp/lsquic-tick-floor.patch ); \
+      ( cd "$d" && git apply -p1 /node/lsquic-tick-floor.patch ); \
       echo "patched $d"; patched=$((patched+1)); \
     done; \
     [ "$patched" -gt 0 ] || { echo "no lsquic package found to patch"; exit 1; }
 
-# Dynamic link: no `-static`, no `-mmusl`, no `-static-libgcc/-libstdc++`.
+ARG NODE_BINARY=node
 RUN test "${NODE_BINARY}" = "node" -o "${NODE_BINARY}" = "bootstrap"
 RUN nimble c \
-    --os:linux --cpu:amd64 \
     -d:chronicles_colors=None --threads:on --mm:refc \
     -d:metrics -d:libp2p_network_protocols_metrics -d:release \
+    -d:lsquic_no_sendmmsg \
     --out:/node/main \
     "${NODE_BINARY}/main.nim" \
     && chmod +x /node/main \
@@ -65,9 +58,7 @@ RUN nimble c \
     && grep -qa LSQUIC_TICK_FLOOR_US /node/main \
     && echo "TICK-FLOOR VERIFIED IN BINARY"
 
-# Tiny final stage: the binary + its runtime deps. The image's role is to hand
-# off /node/main to an init container, not to run anything itself. We still
-# include glibc/libssl/libstdc++ in case someone wants to `docker run` it.
+# The binary and its runtime deps; an init container copies /node/main out for Shadow.
 FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
