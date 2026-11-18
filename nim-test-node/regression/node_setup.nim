@@ -1,5 +1,6 @@
 import os, strutils
 
+import chronos
 import libp2p
 import libp2p/[crypto/secp, multiaddress, muxers/mplex/lpchannel]
 import libp2p/protocols/kademlia

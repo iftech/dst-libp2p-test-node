@@ -107,7 +107,7 @@ exposing both upstream in nim-lsquic.
 
 ## Maintaining the patch
 
-It targets lsquic 0.8.1's layout, pinned in `nimble.lock`. It also guards
+It targets lsquic 0.11.3's layout, pinned in `nimble.lock`. It also guards
 lsquic's `sendmmsg` path behind `-d:lsquic_no_sendmmsg`, which only
 `Dockerfile_shadow` sets. `nimble c`
 re-resolves deps before compiling, so the Dockerfile patches the package cache
