@@ -13,6 +13,6 @@ skipDirs = @[]
 
 requires "nim >= 2.2.0",
   "libp2p#25f728a9aa3b50732598794ff4f6f6dc8e233188",
-  "chronos == 4.2.2",
+  "chronos == 4.4.1",
   "lsquic == 0.11.3",
   "https://github.com/vacp2p/nim-boringssl == 0.0.14"
